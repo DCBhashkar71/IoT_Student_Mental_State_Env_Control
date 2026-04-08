@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IoT Smart Study Environment — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --cyan: #00d4ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --text: #e6edf3;
+    --muted: #8b949e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 1.2rem; font-weight: 700; color: var(--cyan); }
+  header p  { font-size: 0.75rem; color: var(--muted); }
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(63, 185, 80, 0.15); border: 1px solid var(--green);
+    border-radius: 20px; padding: 4px 12px; font-size: 0.75rem; color: var(--green);
+  }
+  .live-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── Layout ── */
+  main { padding: 20px 24px; display: grid; gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  
+  .full-width { grid-column: 1 / -1; }
+  .two-col { grid-column: span 2; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent, var(--cyan));
+  }
+  .card-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 14px; }
+
+  /* ── State Banner ── */
+  #state-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 24px; border-radius: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+  }
+  .state-label { font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+  .state-value { font-size: 2rem; font-weight: 800; }
+  .state-meta  { display: flex; gap: 20px; }
+  .meta-item   { text-align: center; }
+  .meta-num    { font-size: 1.5rem; font-weight: 700; }
+  .meta-lbl    { font-size: 0.7rem; color: var(--muted); }
+
+  /* ── Gauge ── */
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; }
+  .gauge-svg  { width: 140px; height: 90px; }
+  .gauge-val  { font-size: 1.6rem; font-weight: 800; text-align: center; margin-top: -8px; }
+  .gauge-unit { font-size: 0.7rem; color: var(--muted); text-align: center; }
+
+  /* ── Grid of gauges ── */
+  .gauge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .gauge-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+
+  /* ── Metric row ── */
+  .metric { display: flex; align-items: baseline; gap: 6px; margin-bottom: 10px; }
+  .metric-val  { font-size: 2rem; font-weight: 800; }
+  .metric-unit { font-size: 0.8rem; color: var(--muted); }
+  .metric-sub  { font-size: 0.7rem; color: var(--muted); }
+
+  /* ── Alert list ── */
+  #alert-list { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; }
+  .alert-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: var(--surface2); border-radius: 8px; padding: 10px 12px;
+    border-left: 3px solid var(--border); font-size: 0.78rem; animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+  .alert-time { color: var(--muted); font-size: 0.7rem; white-space: nowrap; }
+
+  /* ── Actuator badges ── */
+  .actuator-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; }
+  .actuator-item { background: var(--surface2); border-radius: 8px; padding: 12px; }
+  .act-label { font-size: 0.68rem; color: var(--muted); margin-bottom: 4px; }
+  .act-value { font-size: 1rem; font-weight: 700; }
+  .act-bar   { height: 4px; border-radius: 2px; margin-top: 6px; transition: width 0.5s; }
+
+  /* ── Chart ── */
+  .chart-wrap { height: 140px; }
+
+  /* ── Progress bars ── */
+  .progress-row { display: flex; flex-direction: column; gap: 12px; }
+  .prog-item { }
+  .prog-head { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 4px; }
+  .prog-bar-bg { height: 6px; background: var(--border); border-radius: 3px; }
+  .prog-bar    { height: 6px; border-radius: 3px; transition: width 0.6s ease, background 0.3s; }
+
+  /* ── Scenarios ── */
+  .scenario-btns { display: flex; gap: 8px; margin-bottom: 16px; }
+  .scen-btn {
+    flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text); cursor: pointer; font-size: 0.78rem;
+    transition: all 0.2s;
+  }
+  .scen-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+  .scen-btn.active { background: var(--cyan); color: #000; border-color: var(--cyan); font-weight: 700; }
+
+  /* ── Colors ── */
+  .c-green  { color: var(--green); }
+  .c-yellow { color: var(--yellow); }
+  .c-red    { color: var(--red); }
+  .c-cyan   { color: var(--cyan); }
+  .c-purple { color: var(--purple); }
+  .c-muted  { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📡 IoT Smart Study Environment</h1>
+    <p>Hardware Simulation Dashboard — Bhashkar Datta Chaudhuri</p>
+  </div>
+  <div class="live-badge"><div class="live-dot"></div> LIVE SIMULATION</div>
+</header>
+
+<main>
+
+  <!-- State Banner (full width) -->
+  <div id="state-banner" class="full-width">
+    <div>
+      <div class="state-label">🧠 STUDENT STATE</div>
+      <div class="state-value" id="state-text">FOCUSED</div>
+      <div id="oled-msg" style="font-size:0.85rem; margin-top:4px; color:var(--muted)">✅ All Good</div>
+    </div>
+    <div class="state-meta">
+      <div class="meta-item">
+        <div class="meta-num c-yellow" id="fatigue-pct">5%</div>
+        <div class="meta-lbl">Fatigue</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-num c-red" id="stress-pct">2%</div>
+        <div class="meta-lbl">Stress</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-num c-cyan" id="tick-disp">00:00</div>
+        <div class="meta-lbl">Elapsed</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scenario selector (full width) -->
+  <div class="card full-width" style="padding: 14px 18px;">
+    <div class="card-title">🎮 Simulation Scenario</div>
+    <div class="scenario-btns">
+      <button class="scen-btn active" onclick="setScenario('normal')">🟢 Normal Study</button>
+      <button class="scen-btn" onclick="setScenario('stress')">🔴 High Stress</button>
+      <button class="scen-btn" onclick="setScenario('tired')">🟡 Tired / Fatigued</button>
+      <button class="scen-btn" onclick="setScenario('dark')">🌑 Low Light</button>
+    </div>
+  </div>
+
+  <!-- Environment Card -->
+  <div class="card" style="--accent: var(--cyan);">
+    <div class="card-title">🌿 Environment Sensors</div>
+    <div class="gauge-grid">
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" id="g-co2-svg"></svg>
+        <div class="gauge-val" id="v-co2">450</div>
+        <div class="gauge-unit">CO₂ (ppm)</div>
+      </div>
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" id="g-lux-svg"></svg>
+        <div class="gauge-val" id="v-lux">420</div>
+        <div class="gauge-unit">Light (lux)</div>
+      </div>
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" id="g-temp-svg"></svg>
+        <div class="gauge-val" id="v-temp">26.5</div>
+        <div class="gauge-unit">Temp (°C)</div>
+      </div>
+    </div>
+    <div style="margin-top:14px; font-size:0.78rem; color:var(--muted); display:flex; gap:20px;">
+      <span>💧 Humidity: <strong id="v-humid" style="color:var(--cyan)">63%</strong></span>
+      <span>🌡️ Feels Like: <strong id="v-feels" style="color:var(--cyan)">27°C</strong></span>
+    </div>
+  </div>
+
+  <!-- Biometrics Card -->
+  <div class="card" style="--accent: var(--red);">
+    <div class="card-title">❤️ Biometric Sensors (MAX30102)</div>
+    <div class="gauge-grid-2">
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" id="g-hr-svg"></svg>
+        <div class="gauge-val" id="v-hr">72</div>
+        <div class="gauge-unit">Heart Rate (bpm)</div>
+      </div>
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" id="g-hrv-svg"></svg>
+        <div class="gauge-val" id="v-hrv">44</div>
+        <div class="gauge-unit">HRV (ms)</div>
+      </div>
+    </div>
+    <div style="margin-top:14px; text-align:center;">
+      <div style="font-size:0.7rem;color:var(--muted); margin-bottom:4px;">SpO₂ Oxygen Saturation</div>
+      <div style="font-size:2rem; font-weight:800;" id="v-spo2" class="c-green">98.5%</div>
+    </div>
+  </div>
+
+  <!-- Behavior Card -->
+  <div class="card" style="--accent: var(--purple);">
+    <div class="card-title">🧍 Behavior — HC-SR04 Posture Sensor</div>
+    <div class="gauge-wrap">
+      <svg class="gauge-svg" id="g-pos-svg" style="width:200px; height:110px;"></svg>
+      <div class="gauge-val" id="v-pos">56</div>
+      <div class="gauge-unit">Distance from sensor (cm)</div>
+    </div>
+    <div style="margin-top:16px;" class="progress-row">
+      <div class="prog-item">
+        <div class="prog-head"><span>Fatigue Level</span><span id="fatigue-bar-pct">5%</span></div>
+        <div class="prog-bar-bg"><div class="prog-bar" id="fatigue-bar" style="width:5%; background:var(--yellow);"></div></div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-head"><span>Stress Level</span><span id="stress-bar-pct">2%</span></div>
+        <div class="prog-bar-bg"><div class="prog-bar" id="stress-bar" style="width:2%; background:var(--red);"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HR Chart -->
+  <div class="card" style="--accent: var(--red);">
+    <div class="card-title">📈 Heart Rate & CO₂ History</div>
+    <div class="chart-wrap"><canvas id="chart-hr"></canvas></div>
+  </div>
+
+  <!-- Actuators Card -->
+  <div class="card" style="--accent: var(--green);">
+    <div class="card-title">⚙️ Virtual Actuator Status</div>
+    <div class="actuator-grid">
+      <div class="actuator-item">
+        <div class="act-label">🌀 DC Fan Speed (PWM)</div>
+        <div class="act-value" id="v-fan">30%</div>
+        <div class="act-bar" id="bar-fan" style="background:var(--cyan); width:30%;"></div>
+      </div>
+      <div class="actuator-item">
+        <div class="act-label">💡 LED Brightness (PWM)</div>
+        <div class="act-value" id="v-led">70%</div>
+        <div class="act-bar" id="bar-led" style="background:var(--yellow); width:70%;"></div>
+      </div>
+      <div class="actuator-item">
+        <div class="act-label">🌡️ LED Color Temp</div>
+        <div class="act-value" id="v-led-k">5000K</div>
+      </div>
+      <div class="actuator-item">
+        <div class="act-label">📳 Haptic Motor</div>
+        <div class="act-value" id="v-haptic">OFF</div>
+      </div>
+    </div>
+    <div style="margin-top:12px; background:var(--surface2); border-radius:8px; padding:10px 12px; font-size:0.82rem;">
+      <span style="color:var(--muted);">📟 OLED: </span><strong id="v-oled">✅ All Good</strong>
+    </div>
+    <div style="margin-top:8px; background:var(--surface2); border-radius:8px; padding:10px 12px; font-size:0.82rem;">
+      <span style="color:var(--muted);">☕ Break: </span><strong id="v-break">No</strong>
+    </div>
+  </div>
+
+  <!-- Alerts Card -->
+  <div class="card full-width" style="--accent: var(--red);">
+    <div class="card-title">🚨 Alert Log</div>
+    <div id="alert-list">
+      <div class="alert-item c-muted" style="border-color:var(--border);">No alerts yet — simulation running...</div>
+    </div>
+  </div>
+
+  <!-- MQTT Topics reference -->
+  <div class="card full-width" style="--accent: var(--muted);">
+    <div class="card-title">📡 MQTT Topics (for Node-RED integration)</div>
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap:8px; font-size:0.73rem; font-family:monospace;">
+      <div style="background:var(--surface2); padding:8px 10px; border-radius:6px;">/smartdesk/env/co2 → <span id="mqtt-co2" class="c-cyan">...</span></div>
+      <div style="background:var(--surface2); padding:8px 10px; border-radius:6px;">/smartdesk/env/lux → <span id="mqtt-lux" class="c-cyan">...</span></div>
+      <div style="background:var(--surface2); padding:8px 10px; border-radius:6px;">/smartdesk/biometrics/hr → <span id="mqtt-hr" class="c-cyan">...</span></div>
+      <div style="background:var(--surface2); padding:8px 10px; border-radius:6px;">/smartdesk/biometrics/hrv → <span id="mqtt-hrv" class="c-cyan">...</span></div>
+      <div style="background:var(--surface2); padding:8px 10px; border-radius:6px;">/smartdesk/behavior/posture → <span id="mqtt-pos" class="c-cyan">...</span></div>
+      <div style="background:var(--surface2); padding:8px 10px; border-radius:6px;">/smartdesk/state/student → <span id="mqtt-state" class="c-cyan">...</span></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── Simulation State ─────────────────────────────────────────
+let tick = 0;
+let scenario = 'normal';
+let fatigue  = 0;
+let stress   = 0;
+
+// Sensor values (internal state)
+let s = {
+  co2: 450, temp: 26.5, humid: 63, lux: 420,
+  posture: 56, hr: 72, spo2: 98.5, hrv: 44
+};
+
+const THRESH = {
+  co2_high: 1000, lux_low: 300, pos_bad: 35, hrv_stress: 25, hr_high: 90
+};
+
+// History arrays for chart
+let hrHistory  = Array(60).fill(72);
+let co2History = Array(60).fill(450);
+let labels     = Array(60).fill('');
+
+// ── Chart.js ────────────────────────────────────────────────
+const ctx = document.getElementById('chart-hr').getContext('2d');
+const myChart = new Chart(ctx, {
+  data: {
+    labels: labels,
+    datasets: [
+      {
+        type: 'line', label: 'Heart Rate (bpm)',
+        data: hrHistory, borderColor: '#f85149', backgroundColor: 'rgba(248,81,73,0.1)',
+        tension: 0.4, pointRadius: 0, fill: true, yAxisID: 'yHR'
+      },
+      {
+        type: 'line', label: 'CO₂ (ppm/10)',
+        data: co2History.map(v => v/10), borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.08)',
+        tension: 0.4, pointRadius: 0, fill: true, yAxisID: 'yCO2'
+      }
+    ]
+  },
+  options: {
+    animation: false, responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#8b949e', font: { size: 10 } } } },
+    scales: {
+      x:    { display: false },
+      yHR:  { display: true, min: 40, max: 140, position: 'left',
+               ticks: { color: '#f85149', font: {size:9} }, grid: { color: '#30363d' } },
+      yCO2: { display: true, min: 30, max: 200, position: 'right',
+               ticks: { color: '#00d4ff', font: {size:9}, callback: v => v*10 }, grid: { display: false } }
+    }
+  }
+});
+
+// ── Gauge SVG renderer ───────────────────────────────────────
+function drawGauge(id, value, min, max, color) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const pct  = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  const angle = -Math.PI * 0.85 + pct * Math.PI * 1.7;
+  const cx = 70, cy = 82, r = 55;
+  const sx = cx + r * Math.cos(-Math.PI * 0.85);
+  const sy = cy + r * Math.sin(-Math.PI * 0.85);
+  const ex = cx + r * Math.cos(Math.PI * 0.85);
+  const ey = cy + r * Math.sin(Math.PI * 0.85);
+  const px = cx + r * Math.cos(angle);
+  const py = cy + r * Math.sin(angle);
+
+  el.innerHTML = `
+    <path d="M ${sx} ${sy} A ${r} ${r} 0 1 1 ${ex} ${ey}"
+          fill="none" stroke="#30363d" stroke-width="10" stroke-linecap="round"/>
+    <path d="M ${sx} ${sy} A ${r} ${r} 0 ${pct > 0.5 ? 1 : 0} 1 ${px} ${py}"
+          fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round"/>
+  `;
+}
+
+function gaugeColor(val, lo, hi) {
+  const pct = (val - lo) / (hi - lo);
+  if (pct < 0.4) return '#3fb950';
+  if (pct < 0.7) return '#d29922';
+  return '#f85149';
+}
+
+function gaugeColorInv(val, lo, hi) {
+  const pct = (val - lo) / (hi - lo);
+  if (pct > 0.6) return '#3fb950';
+  if (pct > 0.3) return '#d29922';
+  return '#f85149';
+}
+
+// ── Random helpers ───────────────────────────────────────────
+function gauss(mean, std) {
+  let u=0,v=0;
+  while(!u)u=Math.random();
+  while(!v)v=Math.random();
+  return mean + std * Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+// ── Scenario config ──────────────────────────────────────────
+const scenarios = {
+  normal: { co2Base:450, hrBase:72, posBase:56, luxBase:420, stressInit:0, fatigueRate:1/3600 },
+  stress: { co2Base:550, hrBase:90, posBase:50, luxBase:400, stressInit:0.4, fatigueRate:1/3600 },
+  tired:  { co2Base:750, hrBase:78, posBase:38, luxBase:380, stressInit:0.1, fatigueRate:1/900 },
+  dark:   { co2Base:450, hrBase:72, posBase:56, luxBase:150, stressInit:0, fatigueRate:1/3600 },
+};
+
+function setScenario(sc) {
+  scenario = sc;
+  const cfg = scenarios[sc];
+  s.co2    = cfg.co2Base;
+  s.hr     = cfg.hrBase;
+  s.posture = cfg.posBase;
+  s.lux    = cfg.luxBase;
+  stress   = cfg.stressInit;
+  tick = 0; fatigue = 0;
+  document.querySelectorAll('.scen-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+// ── Alert log ────────────────────────────────────────────────
+const alerts = [];
+function pushAlert(type, msg, color) {
+  const now = new Date().toLocaleTimeString();
+  alerts.unshift({ type, msg, color, time: now });
+  if (alerts.length > 15) alerts.pop();
+  renderAlerts();
+}
+function renderAlerts() {
+  const el = document.getElementById('alert-list');
+  if (!alerts.length) { el.innerHTML = '<div class="alert-item c-muted">No alerts</div>'; return; }
+  el.innerHTML = alerts.map(a => `
+    <div class="alert-item" style="border-color:${a.color};">
+      <span class="alert-time">${a.time}</span>
+      <span style="color:${a.color}">${a.msg}</span>
+    </div>`).join('');
+}
+
+// ── State inference ──────────────────────────────────────────
+function inferState() {
+  if (s.hrv < THRESH.hrv_stress && s.hr > THRESH.hr_high) return 'STRESSED';
+  if (s.co2 > THRESH.co2_high || s.posture < THRESH.pos_bad) return 'FATIGUED';
+  if (s.hr <= 80 && s.hrv >= 35 && s.posture >= 40) return 'FOCUSED';
+  return 'NORMAL';
+}
+
+const stateColors = { FOCUSED:'#3fb950', NORMAL:'#00d4ff', FATIGUED:'#d29922', STRESSED:'#f85149', BREAK:'#8b949e' };
+const stateEmoji  = { FOCUSED:'🟢', NORMAL:'🔵', FATIGUED:'🟡', STRESSED:'🔴', BREAK:'⚪' };
+
+// ── Main simulation tick ─────────────────────────────────────
+function simulationTick() {
+  tick++;
+  const cfg = scenarios[scenario];
+
+  // Update fatigue + stress
+  fatigue = clamp(fatigue + cfg.fatigueRate, 0, 1);
+  if (Math.random() < 0.008) stress = clamp(stress + Math.random()*0.2, 0, 1);
+  stress = clamp(stress - 0.003, 0, 1);
+
+  // CO2 drift
+  s.co2 += 0.3 + fatigue * 0.4 + gauss(0, 4);
+  s.co2  = clamp(s.co2, 400, 1600);
+
+  // Lux
+  s.lux += Math.sin(tick/100)*1.5 + gauss(0, 6);
+  s.lux  = clamp(s.lux, 50, 1200);
+  if (scenario === 'dark') s.lux = clamp(s.lux, 50, 280);
+
+  // Temp
+  s.temp += gauss(0, 0.04);
+  s.temp  = clamp(s.temp, 24, 32);
+
+  // Humidity
+  s.humid += gauss(0, 0.15);
+  s.humid  = clamp(s.humid, 40, 85);
+
+  // Posture
+  const postTarget = cfg.posBase - fatigue*18 - stress*8;
+  s.posture = s.posture*0.97 + postTarget*0.03 + gauss(0,1.2);
+  s.posture = clamp(s.posture, 15, 90);
+
+  // HR
+  const hrTarget = cfg.hrBase + stress*28 + fatigue*8;
+  s.hr = s.hr*0.97 + hrTarget*0.03 + gauss(0,1);
+  s.hr = clamp(s.hr, 50, 145);
+
+  // HRV
+  const hrvTarget = 50 - stress*35 - fatigue*10;
+  s.hrv = s.hrv*0.96 + hrvTarget*0.04 + gauss(0,1.5);
+  s.hrv = clamp(s.hrv, 8, 80);
+
+  // SpO2
+  const co2Effect = Math.max(0, (s.co2 - 800) / 1000) * 2.5;
+  s.spo2 = clamp(98.5 - co2Effect + gauss(0, 0.2), 90, 100);
+
+  // ── Infer state ──
+  const state = inferState();
+
+  // ── Actuator decisions ──
+  let fanPWM = 30, ledBright = 70, ledK = 5000, haptic = false;
+  let oled = '✅ All Good', breakSug = 'No';
+
+  if (s.co2 > THRESH.co2_high) { fanPWM = 80; oled = '⚠️ Ventilation Required'; }
+  if (s.lux < THRESH.lux_low)  { ledBright = Math.min(100, Math.round(70 + (500-s.lux)/5)); }
+  if (s.posture < THRESH.pos_bad) { haptic = true; oled = '📐 Sit Straight!'; }
+  if (state === 'STRESSED')    { ledK = 2700; breakSug = 'YES — 5 min'; oled = '😮‍💨 Take a Break!'; }
+
+  // ── Alerts ──
+  if (s.co2 > THRESH.co2_high && tick % 30 === 0)
+    pushAlert('co2', `🌬️ HIGH CO₂ (${Math.round(s.co2)} ppm) — Fans at 80%`, '#f85149');
+  if (s.lux < THRESH.lux_low && tick % 60 === 0)
+    pushAlert('light', `💡 LOW LIGHT (${Math.round(s.lux)} lux) — LED Boosting to ${ledBright}%`, '#d29922');
+  if (s.posture < THRESH.pos_bad && tick % 15 === 0)
+    pushAlert('posture', `📐 POOR POSTURE (${Math.round(s.posture)} cm) — Haptic On!`, '#bc8cff');
+  if (state === 'STRESSED' && tick % 45 === 0)
+    pushAlert('stress', `😰 STRESS DETECTED — HRV=${Math.round(s.hrv)}ms HR=${Math.round(s.hr)}bpm`, '#f85149');
+
+  // ── Update DOM ──
+  const sc = stateColors[state];
+  document.getElementById('state-text').textContent = stateEmoji[state] + ' ' + state;
+  document.getElementById('state-text').style.color = sc;
+  document.getElementById('oled-msg').textContent = oled;
+  document.getElementById('fatigue-pct').textContent = Math.round(fatigue*100) + '%';
+  document.getElementById('stress-pct').textContent  = Math.round(stress*100) + '%';
+  const mm = String(Math.floor(tick/60)).padStart(2,'0');
+  const ss = String(tick%60).padStart(2,'0');
+  document.getElementById('tick-disp').textContent = mm + ':' + ss;
+
+  // Env
+  document.getElementById('v-co2').textContent  = Math.round(s.co2);
+  document.getElementById('v-lux').textContent  = Math.round(s.lux);
+  document.getElementById('v-temp').textContent = s.temp.toFixed(1);
+  document.getElementById('v-humid').textContent = Math.round(s.humid) + '%';
+  document.getElementById('v-feels').textContent = (s.temp + 0.5*Math.log(s.humid/100+1)).toFixed(1) + '°C';
+
+  drawGauge('g-co2-svg', s.co2, 300, 1800, gaugeColor(s.co2, 300, 1800));
+  drawGauge('g-lux-svg', s.lux, 0, 1200, gaugeColorInv(s.lux, 0, 1200));
+  drawGauge('g-temp-svg', s.temp, 20, 35, gaugeColor(s.temp, 20, 35));
+
+  document.getElementById('v-co2').style.color = s.co2 > 1000 ? '#f85149' : '#3fb950';
+  document.getElementById('v-lux').style.color = s.lux < 300 ? '#f85149' : '#3fb950';
+
+  // Bio
+  document.getElementById('v-hr').textContent  = Math.round(s.hr);
+  document.getElementById('v-hrv').textContent = Math.round(s.hrv);
+  document.getElementById('v-spo2').textContent = s.spo2.toFixed(1) + '%';
+  document.getElementById('v-hr').style.color  = s.hr > 90 ? '#f85149' : '#3fb950';
+  document.getElementById('v-hrv').style.color = s.hrv < 25 ? '#f85149' : '#3fb950';
+  document.getElementById('v-spo2').style.color = s.spo2 < 95 ? '#f85149' : '#3fb950';
+
+  drawGauge('g-hr-svg',  s.hr,  40, 150, gaugeColor(s.hr, 40, 150));
+  drawGauge('g-hrv-svg', s.hrv, 0, 80,  gaugeColorInv(s.hrv, 0, 80));
+
+  // Posture
+  document.getElementById('v-pos').textContent = Math.round(s.posture);
+  document.getElementById('v-pos').style.color = s.posture < 35 ? '#f85149' : '#3fb950';
+  drawGauge('g-pos-svg', s.posture, 15, 90, gaugeColorInv(s.posture, 15, 90));
+
+  // Progress bars
+  const fp = Math.round(fatigue*100);
+  const sp = Math.round(stress*100);
+  document.getElementById('fatigue-bar').style.width = fp + '%';
+  document.getElementById('stress-bar').style.width  = sp + '%';
+  document.getElementById('fatigue-bar-pct').textContent = fp + '%';
+  document.getElementById('stress-bar-pct').textContent  = sp + '%';
+
+  // Actuators
+  document.getElementById('v-fan').textContent   = fanPWM + '%';
+  document.getElementById('v-led').textContent   = ledBright + '%';
+  document.getElementById('v-led-k').textContent = ledK + 'K';
+  document.getElementById('v-haptic').textContent = haptic ? '🔴 VIBRATING' : '⚫ OFF';
+  document.getElementById('v-haptic').style.color = haptic ? '#f85149' : '#8b949e';
+  document.getElementById('v-oled').textContent   = oled;
+  document.getElementById('v-break').textContent  = breakSug;
+  document.getElementById('bar-fan').style.width  = fanPWM + '%';
+  document.getElementById('bar-led').style.width  = ledBright + '%';
+
+  // MQTT display
+  document.getElementById('mqtt-co2').textContent   = `{"value":${Math.round(s.co2)},"unit":"ppm"}`;
+  document.getElementById('mqtt-lux').textContent   = `{"value":${Math.round(s.lux)},"unit":"lux"}`;
+  document.getElementById('mqtt-hr').textContent    = `{"value":${Math.round(s.hr)},"unit":"bpm"}`;
+  document.getElementById('mqtt-hrv').textContent   = `{"value":${Math.round(s.hrv)},"unit":"ms"}`;
+  document.getElementById('mqtt-pos').textContent   = `{"value":${Math.round(s.posture)},"unit":"cm"}`;
+  document.getElementById('mqtt-state').textContent = `{"state":"${state}"}`;
+
+  // Chart update
+  hrHistory.push(Math.round(s.hr)); hrHistory.shift();
+  co2History.push(Math.round(s.co2/10)); co2History.shift();
+  myChart.data.datasets[0].data = [...hrHistory];
+  myChart.data.datasets[1].data = [...co2History];
+  myChart.update('none');
+}
+
+// ── Start simulation ─────────────────────────────────────────
+setInterval(simulationTick, 1000);
+simulationTick(); // immediate first tick
+</script>
+</body>
+</html>
